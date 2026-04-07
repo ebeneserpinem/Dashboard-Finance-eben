@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; max-width: 1000px; margin: auto; padding: 20px; }
+        .card { background: #1e293b; padding: 20px; border-radius: 15px; margin-bottom: 20px; border: 1px solid #334155; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        h2 { color: #38bdf8; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { padding: 12px; border-bottom: 1px solid #334155; text-align: left; }
+        .nominal { font-family: monospace; font-weight: bold; }
+        .text-net { color: #38bdf8; font-size: 2.5em; margin: 10px 0; }
+        @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+    <div class="card" style="text-align: center;">
+        <h2>💰 Saldo Net Saat Ini</h2>
+        <div class="text-net" id="saldo-net">Rp 0</div>
+        <p style="color: #94a3b8;">(Total Terima - Alokasi & Pengeluaran)</p>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>Alokasi Dana</h3>
+            <canvas id="chartAlokasi"></canvas>
+        </div>
+        <div class="card">
+            <h3>Daftar Transaksi Terbaru</h3>
+            <table id="table">
+                <thead>
+                    <tr>
+                        <th>Rekening</th>
+                        <th>Deskripsi</th>
+                        <th>Jumlah</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API = "https://finance-worker.ebeneserpinem6.workers.dev";
+        let chart;
+
+        async function updateDashboard() {
+            try {
+                // 1. Ambil Data Chart & Saldo
+                const resData = await fetch(API + "/api/data");
+                const d = await resData.json();
+                
+                document.getElementById("saldo-net").innerText = "Rp " + d.saldo_net_display.toLocaleString('id-ID');
+
+                const ctx = document.getElementById("chartAlokasi").getContext("2d");
+                if (chart) chart.destroy();
+                chart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['Dana Darurat', 'Investasi', 'Pengeluaran'],
+                        datasets: [{
+                            data: [d.dana_darurat, d.investasi, d.pengeluaran],
+                            backgroundColor: ['#facc15', '#22c55e', '#ef4444'],
+                            borderWidth: 0
+                        }]
+                    }
+                });
+
+                // 2. Ambil Data Tabel
+                const resTable = await fetch(API + "/api/transaksi");
+                const transactions = await resTable.json();
+                const tbody = document.querySelector("#table tbody");
+                tbody.innerHTML = transactions.map(t => `
+                    <tr>
+                        <td><small style="color:#38bdf8">${t.no_rekening}</small></td>
+                        <td>${t.deskripsi}<br><small style="color:#94a3b8">${t.tanggal}</small></td>
+                        <td class="nominal">Rp ${Number(t.jumlah).toLocaleString('id-ID')}</td>
+                    </tr>
+                `).join("");
+
+            } catch (e) { console.error("Update failed", e); }
+        }
+
+        updateDashboard();
+        setInterval(updateDashboard, 10000);
+    </script>
+</body>
+</html>
