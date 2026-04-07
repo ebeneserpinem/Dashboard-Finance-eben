@@ -1,0 +1,89 @@
+function prosesEmailKromFinal() {
+
+  const WORKER_URL = "https://finance-worker.ebeneserpinem6.workers.dev/";
+  const threads = GmailApp.search("from:noreply@krom.id is:unread");
+
+  threads.forEach(thread => {
+
+    thread.getMessages().forEach(msg => {
+
+      if (!msg.isUnread()) return;
+
+      const body = msg.getPlainBody();
+      const subject = msg.getSubject();
+
+      // Ambil nominal
+      const matchNominal = body.match(/Rp\s?([\d\.]+)/);
+      if (!matchNominal) return;
+
+      const nominal = parseFloat(matchNominal[1].replace(/\./g,""));
+
+      // Ambil nomor rekening setelah kata "Ke:"
+      let noRekTujuan = "";
+      const rekMatch = body.match(/Ke:.*?(\d{10,15})/);
+
+      if (rekMatch) {
+        noRekTujuan = rekMatch[1];
+      }
+
+      // Tentukan kategori
+      let kategori = "pengeluaran";
+
+      if (noRekTujuan === "109932736919") {
+        kategori = "dana_darurat";
+      }
+
+      else if (noRekTujuan === "110609162843") {
+        kategori = "investasi";
+      }
+
+      else if (subject.includes("Dana Diterima")) {
+        kategori = "saldo_net";
+      }
+
+      const payload = {
+        tanggal: Utilities.formatDate(msg.getDate(),"GMT+7","yyyy-MM-dd"),
+        deskripsi: subject,
+        jumlah: nominal,
+        kategori: kategori,
+        no_rekening: noRekTujuan,
+        email_id: msg.getId()
+      };
+
+      const options = {
+        method: "post",
+        contentType: "application/json",
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      };
+
+      try {
+
+        const response = UrlFetchApp.fetch(WORKER_URL, options);
+
+        if (response.getResponseCode() === 200) {
+
+          msg.markRead();
+
+          Logger.log(
+            "BERHASIL → " +
+            kategori +
+            " | Rek: " +
+            noRekTujuan +
+            " | Rp " +
+            nominal
+          );
+
+        }
+
+      } catch(e) {
+
+        Logger.log("ERROR: " + e.message);
+
+      }
+
+    });
+
+  });
+
+}
